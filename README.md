@@ -1,6 +1,8 @@
-# Finzla Cloud & Platform Engineer Technical Assessment
+# AWS ECS Fargate Platform
 
-This repository contains a small Python HTTP service packaged with Docker and deployed to AWS using Terraform. The infrastructure uses ECR for image storage, ECS Fargate for compute, an Application Load Balancer for ingress, and CloudWatch for logs, metrics, and alerts.
+> A containerized Python HTTP service deployed to AWS ECS Fargate behind an Application Load Balancer (ALB), provisioned with modular Terraform and shipped through a GitHub Actions CI/CD pipeline.
+
+This repository demonstrates a production-style container deployment on AWS. The infrastructure uses Amazon ECR for container image storage, Amazon ECS Fargate for serverless compute, an Application Load Balancer for ingress, and Amazon CloudWatch for logs, metrics, and automated alerts.
 
 ## Application
 
@@ -24,7 +26,7 @@ Implemented modules:
 
 ## Cost And Reliability Tradeoff
 
-The VPC uses one NAT gateway for private subnet egress. This reduces cost compared with one NAT gateway per Availability Zone, which is appropriate for this assessment and a small non-production environment.
+The VPC uses one NAT gateway for private subnet egress. This reduces cost compared with one NAT gateway per Availability Zone, which is appropriate for a lean development environment.
 
 The tradeoff is reduced Availability Zone isolation. If the Availability Zone containing the NAT gateway has an outage, ECS tasks in private subnets may lose outbound access to services such as ECR and CloudWatch Logs. A production deployment would normally use one NAT gateway per Availability Zone or private VPC endpoints for ECR, S3, and CloudWatch Logs.
 
@@ -43,9 +45,9 @@ The Docker image is built locally, tagged with the ECR repository URL, and pushe
 
 ```bash
 docker build -t python-http-service .
-aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 536697239284.dkr.ecr.us-east-1.amazonaws.com
-docker tag python-http-service:latest 536697239284.dkr.ecr.us-east-1.amazonaws.com/python-http-service:latest
-docker push 536697239284.dkr.ecr.us-east-1.amazonaws.com/python-http-service:latest
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin <aws-account-id>.dkr.ecr.us-east-1.amazonaws.com
+docker tag python-http-service:latest <aws-account-id>.dkr.ecr.us-east-1.amazonaws.com/python-http-service:latest
+docker push <aws-account-id>.dkr.ecr.us-east-1.amazonaws.com/python-http-service:latest
 ```
 
 After deployment, get the ALB DNS name:
@@ -70,7 +72,7 @@ Application logs are written by the ECS task to CloudWatch Logs through the `aws
 /ecs/<service-name>
 ```
 
-The current retention period is `7` days. This keeps enough recent operational history for troubleshooting while limiting storage cost in a small assessment environment. A production environment may use longer retention or export logs to S3 depending on audit and compliance requirements.
+The current retention period is `7` days. This keeps enough recent operational history for troubleshooting while limiting storage cost in a non-production development environment. A production environment may use longer retention or export logs to S3 depending on audit and compliance requirements.
 
 ### Useful Metrics
 
@@ -110,7 +112,7 @@ Alarm actions are configurable through the CloudWatch module's `alarm_actions` v
 
 The GitHub Actions workflow is defined in `.github/workflows/ci-cd.yml`.
 
-The pipeline as instructed should demonstrate:
+The deployment pipeline demonstrates an automated promotion flow:
 
 ```text
 Pull Request -> Validation -> Review -> Merge -> Build -> Push -> Deploy -> Health Check
@@ -172,7 +174,7 @@ To prevent this reaching customers again, the pipeline should run a post-deploym
 
 I chose ECS Fargate because it fits a small containerized HTTP service without requiring EC2 host management. ECR stores the image, ALB handles public traffic and health checks, ECS runs the container in private subnets, and CloudWatch provides logs, metrics, and alarms.
 
-A reasonable alternative was EC2 with Docker or an Auto Scaling Group. I rejected it because it adds server patching, AMI management, and more operational work than this assessment needs.
+A reasonable alternative was EC2 with Docker or an Auto Scaling Group. I rejected it because it adds server patching, AMI management, and unnecessary operational overhead for a microservice architecture.
 
 ### Reliability
 
@@ -184,7 +186,7 @@ Rollback would use the previous working image tag or task definition revision, t
 
 The two largest likely cost drivers are NAT gateway usage and ECS Fargate runtime.
 
-To control NAT cost, this design uses one NAT gateway for the assessment. For production, I would consider VPC endpoints for ECR, S3, and CloudWatch Logs to reduce NAT data processing charges.
+To control NAT cost, this design uses one NAT gateway for the development environment. For production, I would consider VPC endpoints for ECR, S3, and CloudWatch Logs to reduce NAT data processing charges.
 
 To control ECS cost, I would right-size CPU and memory, keep desired task count appropriate for traffic, use autoscaling, and separate dev/prod capacity.
 
@@ -195,3 +197,7 @@ The three most important improvements before using this for a fintech production
 - Stronger security controls: least-privilege IAM, private VPC endpoints, WAF, secrets management, image vulnerability scanning, and tighter network rules.
 - Safer deployments: immutable image tags, automated rollback, deployment circuit breaker, separate staging environment, and production approval gates.
 - Better observability and resilience: structured logs, dashboards, alert routing, longer retention where required, multi-AZ NAT or VPC endpoints, and tested incident runbooks.
+
+---
+
+*Note: Originally designed as a technical assessment for a cloud & platform engineering challenge, and organized as a reusable reference architecture for ECS Fargate deployments.*
